@@ -34,8 +34,8 @@ interface Props  {
       <div>
         <img
           className="aspect-square w-[100px] h-[100px]"
-          src={row.original.productImages?.[0]?.imageUrl ?? "/no-image.png"}
-        />
+          src={row.original.productImages?.[0]?.imageUrl ?? "/productImages.png"} />
+        
       </div>
     ),
   },

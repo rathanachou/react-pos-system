@@ -1,30 +1,27 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   AudioWaveform,
   BookOpen,
-  Bot,
   Command,
-  Frame,
   GalleryVerticalEnd,
-  Map,
-  PieChart,
+
+  ScanQrCode,
   Settings2,
   SquareTerminal,
-} from "lucide-react"
+} from "lucide-react";
 
+import { NavMain } from "@/components/nav-main";
+import { NavUser } from "@/components/nav-user";
+import { TeamSwitcher } from "@/components/team-switcher";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "../components/ui/sidebar"
-import { TeamSwitcher } from "./team-switcher"
-import { NavMain } from "./nav-main"
-import { NavProjects } from "./nav-projects"
-import { NavUser } from "./nav-user"
+} from "@/components/ui/sidebar";
 
 // This is sample data.
 const data = {
@@ -35,9 +32,9 @@ const data = {
   },
   teams: [
     {
-      name: "Acme Inc",
+      name: "Sala-IT",
       logo: GalleryVerticalEnd,
-      plan: "Enterprise",
+      plan: "",
     },
     {
       name: "Acme Corp.",
@@ -53,42 +50,32 @@ const data = {
   navMain: [
     {
       title: "Product",
-      url: "#",
+      url: "/products",
       icon: SquareTerminal,
       isActive: true,
       items: [
         {
           title: "Products",
-          url: "/admin/Products",
+          url: "/admin/products",
         },
         {
           title: "Category",
           url: "/admin/categories",
         },
         {
-          title: "User",
-          url: "admin/user",
+          title: "Users",
+          url: "/admin/users",
+        },
+        {
+          title: "POS",
+          url: "/admin/pos",
         },
       ],
     },
     {
-      title: "Models",
-      url: "#",
-      icon: Bot,
-      items: [
-        {
-          title: "Genesis",
-          url: "#",
-        },
-        {
-          title: "Explorer",
-          url: "#",
-        },
-        {
-          title: "Quantum",
-          url: "#",
-        },
-      ],
+      title: "POS",
+      url: "/admin/pos",
+      icon: ScanQrCode,
     },
     {
       title: "Documentation",
@@ -137,24 +124,7 @@ const data = {
       ],
     },
   ],
-  projects: [
-    {
-      name: "Design Engineering",
-      url: "#",
-      icon: Frame,
-    },
-    {
-      name: "Sales & Marketing",
-      url: "#",
-      icon: PieChart,
-    },
-    {
-      name: "Travel",
-      url: "#",
-      icon: Map,
-    },
-  ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -164,12 +134,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

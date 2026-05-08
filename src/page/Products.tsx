@@ -6,7 +6,6 @@ import type { IProduct } from "../types/product";
 
 import { Spinner } from "../components/ui/spinner";
 import { getAccessToken } from "../utils/TokenStorage";
-import FileUpload03 from "../components/file-upload-03";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import ProductForm from "../components/Products/ProductForm";
@@ -14,7 +13,7 @@ import { DataTable } from "../components/data-table";
 import { columns } from "../components/Products/columns";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "../components/ui/pagination";
-import { useProduct } from "../hooks/useProduct";
+import { useProduct, useDeleteProduct } from "../hooks/useProduct";
 
 
 
@@ -34,6 +33,7 @@ const Product = () => {
     undefined,
   );
   const { data: productData, isLoading } = useProduct(search, page, limit);
+  const { mutate: deleteProductMutate } = useDeleteProduct();
 
   const pagination = productData?.pagination;
   const totalPages = Math.ceil(
@@ -42,6 +42,13 @@ const Product = () => {
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   console.log("pagination", pagination);
+
+  const accessToken = getAccessToken();
+  if (!accessToken) {
+    navigate("/login");
+    return null;
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center">
@@ -62,15 +69,11 @@ const Product = () => {
   };
 
   const onDelete = (product: IProduct) => {
-    console.log("delete product", product);
+    if (window.confirm(`Are you sure you want to delete ${product.name}?`)) {
+      deleteProductMutate(product.id);
+    }
   };
 
-  const accessToken = getAccessToken();
-  if (!accessToken) {
-    navigate("/login");
-  }
-
-  
   return (
     <div>
       <div className="flex justify-between">
@@ -88,7 +91,12 @@ const Product = () => {
         </Button>
       </div>
 
-      <ProductForm open={open} setOpen={setOpen} product={selectedProduct} />
+      <ProductForm open={open}
+       setOpen={ () => {
+        setOpen(false);
+        setSelectedProduct(undefined)
+       }} product={selectedProduct}  
+       />
 
       <DataTable
         columns={columns({ onEdit, onDelete })}

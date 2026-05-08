@@ -8,6 +8,7 @@ import { Toaster } from './components/ui/sonner';
 import MainLayout from './layouts/MainLayout';
 import FormLoginPage from './page/FormLoginPage';
 import User from './page/User';
+import PosPage from './page/PosPage';
 const queryClient = new QueryClient()
 function App() {
   return (
@@ -25,10 +26,11 @@ function App() {
           <Route path="/admin/categories" element={<Category />} />
            {/* user */}
           <Route path="/admin/user" element={<User />} />
+          <Route path="/admin/pos" element={<PosPage />} />
         </Route>
       </Routes>   
     </BrowserRouter>
-    <Toaster />
+    <Toaster position='top-center'/>
     </QueryClientProvider>
     
   )

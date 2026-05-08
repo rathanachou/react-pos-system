@@ -1,12 +1,20 @@
 export interface IProduct {
   id: number;
-  name:string;
+  name: string;
   price: number;
   qty: number;
-  categoryId: string;
+  categoryId: number | undefined;
   isActive: boolean;
-  category:{
+  category: {
     id: number;
-    name: string; 
-  }
+    name: string;
+  };
+  productImages?: IProductImage[]
+}
+
+export interface IProductImage {
+  id: number;
+  productId: number;
+  imageUrl: string;
+  fileName: string;
 }

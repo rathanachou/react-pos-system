@@ -1,14 +1,16 @@
 
+import { number } from "zod";
 import type { ProductSchema } from "../components/Products/ProductForm";
 import api from "./libs/axios";
 
 export const fetchProduct = async (
   search?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  categoryId?:  number ,
 ) => {
   const data = await api.get("/api/v1/products", {
-    params: { search, page, limit },
+    params: { search, page, limit , categoryId},
   });
   console.log("fetch data", data);
   return data;
@@ -40,4 +42,12 @@ export const uploadProductImage = async (id: number, file: File) => {
       "Content-Type": "multipart/form-data",
     },
   });
+};
+
+export const deleteProductImage = async (id?: number) => {
+  return await api.delete(`/api/v1/products/images/${id}`);
+};
+
+export const deleteProduct = async (id: number) => {
+  return await api.delete(`/api/v1/products/${id}`);
 };

@@ -7,7 +7,7 @@ import {
   updateCategory,
 } from "../service/categories.service";
 
-export const useCategories = (search: string) => {
+export const useCategories = (search?: string) => {
   return useQuery({
     queryKey: ["categories", search],  // ← removed extra spaces
     queryFn: () => getCategories(search),

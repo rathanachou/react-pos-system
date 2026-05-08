@@ -1,70 +1,93 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createBulkProducts, createProduct, fetchProduct, updateProduct, uploadProductImage } from "../service/product.service";
 
-// hooks/useProduct.ts
-export const useCreateProduct = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: createProduct,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"], exact: false }); // ← key fix
-    },
-    onError: (error: any) => {
-      console.log("Failed to create product", error);
-    },
-  });
-};
-  // const query = useQuery({
-  //   queryKey: ["products", search],
-  //   queryFn: () => fetchProduct(search),
-  // });
+  import { createProduct, deleteProduct, deleteProductImage, fetchProduct, updateProduct, uploadProductImage } from "@/service/product.service";
+  import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+  import { toast } from "sonner";
 
+  export const useProduct = (search?: string, page?: number, limit?: number, categoryId?: number) => {
+    return useQuery({
+      queryKey: ["products", search, page, limit, categoryId],
+      queryFn: () => fetchProduct(search, page, limit, categoryId),
+    });
+  };
 
-export const useProduct = (search?: string , page?: number , limit?: number) => {
-  return useQuery({
-   queryKey: ["products", search, page, limit],
-    queryFn: () => fetchProduct(search, page, limit),
-  });
-};
+  export const useCreateProduct = () => {
+    const queryClient = useQueryClient();
 
-export const useUpdateProduct = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, request }: { id: number; request: any }) =>
-      updateProduct(id, request),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"], exact: false }); // ← key fix
-    },
-    onError: (error: any) => {
-      console.log("Failed to update product", error);
-    },  
-  });
-};
-export const useCreateBulkProducts = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: createBulkProducts,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"], exact: false });
-    },
-    onError: (error: any) => {
-      console.log("Failed to bulk create products", error);
-    },
-  });
-};
+    return useMutation({
+      mutationFn: createProduct,
+      onSuccess: () => {
+        toast.success("Product created successfully");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+      },
+      onError: (error: Error) => {
+        toast.error("Failed to created product");
+        console.log("Failed to create product", error);
+      },
+    });
+  };
 
-export const useUploadProductImage = () => {
-  const queryClient = useQueryClient();
+  export const useUpdateProduct = () => {
+    const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ id, request }: { id: number; request: File }) =>
-      uploadProductImage(id, request),
-    onSuccess: () => {
-      console.log("Product image uploaded successfully");
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    },
-    onError: (error: Error) => {
-      console.log("Failed to upload product image", error);
-    },
-  });
-}
+    return useMutation({
+      mutationFn: ({ id, request }: { id: number; request: any }) =>
+        updateProduct(id, request),
+      onSuccess: () => {
+        toast.success("Product updated successfully");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+      },
+      onError: (error: Error) => {
+        toast.error("Failed to created product");
+        console.log("Failed to create product", error);
+      },
+    });
+  };
+
+  export const useUploadProductImage = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+      mutationFn: ({ id, request }: { id: number; request: File }) =>
+        uploadProductImage(id, request),
+      onSuccess: () => {
+        console.log("Product image uploaded successfully");
+        toast.success("Product image uploaded successfully");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+      },
+      onError: (error: Error) => {
+        console.log("Failed to upload product image", error);
+      },
+    });
+  };
+
+  export const useDeleteProductImage = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+      mutationFn: ({ id }: { id: number }) => deleteProductImage(id),
+      onSuccess: () => {
+        toast.success("Product image deleted successfully");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+      },
+      onError: (error: Error) => {
+        toast.error("Failed to delete product image");
+        console.log("Failed to delete product image", error);
+      },
+    });
+  };
+
+  export const useDeleteProduct = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+      mutationFn: (id: number) => deleteProduct(id),
+      onSuccess: () => {
+        toast.success("Product deleted successfully");
+        queryClient.invalidateQueries({ queryKey: ["products"] });
+      },
+      onError: (error: Error) => {
+        toast.error("Failed to delete product");
+        console.log("Failed to delete product", error);
+      },
+    });
+  };
