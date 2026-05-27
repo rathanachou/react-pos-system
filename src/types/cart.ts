@@ -1,4 +1,4 @@
-export interface ICart{
+export interface ICart {
   id: number;
   name: string;
   category: string;
@@ -6,4 +6,13 @@ export interface ICart{
   imageUrl: string;
   stock: number;
   qty: number;
+}
+
+
+export interface ICartSummary {
+  items: ICart[];
+  totalItems: number;
+  totalPrice: number;
+  discount: number;
+  netTotal: number;
 }

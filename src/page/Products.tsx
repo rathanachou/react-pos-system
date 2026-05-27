@@ -1,6 +1,5 @@
-
 import { CirclePlus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { IProduct } from "../types/product";
 
@@ -11,105 +10,167 @@ import { Button } from "../components/ui/button";
 import ProductForm from "../components/Products/ProductForm";
 import { DataTable } from "../components/data-table";
 import { columns } from "../components/Products/columns";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "../components/ui/pagination";
+import StockManagement from "../components/StockManagement"; 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog"; 
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "../components/ui/pagination";
 import { useProduct, useDeleteProduct } from "../hooks/useProduct";
-
-
 
 const Product = () => {
   const navigate = useNavigate();
 
   const [searchInput, setSearchInput] = useState("");
-
   const [search, setSearch] = useState("");
-
   const [open, setOpen] = useState(false);
-
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [selectedProduct, setSelectedProduct] = useState<IProduct | undefined>(undefined);
 
-  const [selectedProduct, setSelectedProduct] = useState<IProduct | undefined>(
-    undefined,
-  );
+ 
+  const [stockOpen, setStockOpen] = useState(false);
+  const [selectedStockProduct, setSelectedStockProduct] = useState<IProduct | undefined>(undefined);
+
+  useEffect(() => {
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      navigate("/login");
+    }
+  }, [navigate]);
+
   const { data: productData, isLoading } = useProduct(search, page, limit);
   const { mutate: deleteProductMutate } = useDeleteProduct();
 
   const pagination = productData?.pagination;
-  const totalPages = Math.ceil(
-    (pagination?.total || 0) / (pagination?.limit || 1),
-  );
+  const totalPages = Math.ceil((pagination?.total || 0) / (pagination?.limit || 1));
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
 
-  console.log("pagination", pagination);
-
-  const accessToken = getAccessToken();
-  if (!accessToken) {
-    navigate("/login");
-    return null;
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   const handleSearch = () => {
-    console.log("search input", searchInput);
+    setPage(1);
     setSearch(searchInput);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") handleSearch();
+  };
+
+  const handleCloseForm = () => {
+    setOpen(false);
+    setSelectedProduct(undefined);
+  };
+
   const onEdit = (product: IProduct) => {
-    console.log("edit product", product);
     setSelectedProduct(product);
     setOpen(true);
   };
 
   const onDelete = (product: IProduct) => {
-    if (window.confirm(`Are you sure you want to delete ${product.name}?`)) {
+    if (window.confirm(`Are you sure you want to delete "${product.name}"?`)) {
       deleteProductMutate(product.id);
     }
   };
 
+  const onManageStock = (product: IProduct) => {
+    setSelectedStockProduct(product);
+    setStockOpen(true);
+  };
+
+  const handlePrevPage = () => {
+    if (pagination?.prevPage) setPage(pagination.prevPage);
+  };
+
+  const handleNextPage = () => {
+    if (pagination?.nextPage) setPage(pagination.nextPage);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <Spinner />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div className="flex justify-between">
-        <div className="flex gap-2 mb-4">
+      {/* ─── Toolbar ─────────────────────────────────────── */}
+      <div className="flex justify-between mb-4">
+        <div className="flex gap-2">
           <Input
             className="w-[200px]"
-            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search product..."
             value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={handleKeyDown}
           />
-          <Button onClick={() => handleSearch()}>Search</Button>
+          <Button onClick={handleSearch}>Search</Button>
         </div>
-
         <Button onClick={() => setOpen(true)}>
-          <CirclePlus /> Create
+          <CirclePlus className="mr-2 h-4 w-4" /> Create
         </Button>
       </div>
 
-      <ProductForm open={open}
-       setOpen={ () => {
-        setOpen(false);
-        setSelectedProduct(undefined)
-       }} product={selectedProduct}  
-       />
+      {/* ─── Product Form Dialog ──────────────────────────── */}
+      <ProductForm
+        open={open}
+        setOpen={handleCloseForm}
+        product={selectedProduct}
+      />
 
+  
+      <Dialog open={stockOpen} onOpenChange={(val) => {
+        setStockOpen(val);
+        if (!val) setSelectedStockProduct(undefined);
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+               Stock — {selectedStockProduct?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedStockProduct && (
+            <StockManagement
+              productId={selectedStockProduct.id}
+              productName={selectedStockProduct.name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+   
       <DataTable
-        columns={columns({ onEdit, onDelete })}
+        columns={columns({ onEdit, onDelete, onManageStock })} 
         data={productData?.data ?? []}
       />
 
-      <div className="flex justify-between mt-4">
-        <div className="flex w-full items-center gap-2">
-          <p>Rows per page</p>
-
+      {/* ─── Footer ───────────────────────────────────────── */}
+      <div className="flex justify-between items-center mt-4">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">Rows per page</p>
           <Select
             defaultValue="10"
-            onValueChange={(value) => setLimit(Number(value))}
+            onValueChange={(value) => {
+              setLimit(Number(value));
+              setPage(1);
+            }}
           >
             <SelectTrigger className="w-20" id="select-rows-per-page">
               <SelectValue />
@@ -124,13 +185,19 @@ const Product = () => {
               </SelectGroup>
             </SelectContent>
           </Select>
+          {pagination?.total !== undefined && (
+            <p className="text-sm text-muted-foreground">
+              Total: <span className="font-medium">{pagination.total}</span> products
+            </p>
+          )}
         </div>
 
         <Pagination className="flex justify-end">
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                onClick={() => setPage(pagination?.prevPage)}
+                onClick={handlePrevPage}
+                className={!pagination?.prevPage ? "pointer-events-none opacity-40" : "cursor-pointer"}
               />
             </PaginationItem>
             {pages.map((p) => (
@@ -138,14 +205,17 @@ const Product = () => {
                 <PaginationLink
                   isActive={p === pagination?.currentPage}
                   onClick={() => setPage(p)}
+                  className="cursor-pointer"
                 >
                   {p}
                 </PaginationLink>
               </PaginationItem>
             ))}
-
             <PaginationItem>
-              <PaginationNext onClick={() => setPage(pagination?.nextPage)} />
+              <PaginationNext
+                onClick={handleNextPage}
+                className={!pagination?.nextPage ? "pointer-events-none opacity-40" : "cursor-pointer"}
+              />
             </PaginationItem>
           </PaginationContent>
         </Pagination>

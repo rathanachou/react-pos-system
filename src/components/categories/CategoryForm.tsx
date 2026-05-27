@@ -65,13 +65,10 @@ export function CategoryForm({ open, setOpen, category }: Props) {
   });
 
   useEffect(() => {
-    // ← reset with the correct values whether editing or creating
     form.reset({
-      defaultValues : {
-        name: category?.name ??"",
-      },
+      name: category?.name ?? "",
     });
-  }, [category, open]); // ← added open: resets when dialog opens/closes
+  }, [category, open]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

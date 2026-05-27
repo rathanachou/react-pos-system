@@ -28,12 +28,16 @@ import { Button } from "../ui/button";
 import z from "zod";
 import { Spinner } from "../ui/spinner";
 import { useEffect, useRef, useState } from "react";
-import type { IProduct, IProductImage } from "../../types/product";
+import type { ICategory, IProduct, IProductImage } from "../../types/product";
 import { Trash2, Upload } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useCategoriesList } from "../../hooks/useCategories";
-import { useCreateProduct, useDeleteProductImage, useUpdateProduct, useUploadProductImage } from "../../hooks/useProduct";
-import type { ICategory } from "@/types/category";
+import {
+  useCreateProduct,
+  useDeleteProductImage,
+  useUpdateProduct,
+  useUploadProductImage,
+} from "../../hooks/useProduct";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -54,6 +58,10 @@ interface Props {
   product?: IProduct;
 }
 
+const extractId = (res: any): number | undefined => {
+  return res?.data?.id ?? res?.id ?? undefined;
+};
+
 const ProductForm = ({ open, setOpen, product }: Props) => {
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,11 +69,11 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
   const [deleteImageIds, setDeleteImageIds] = useState<number[]>([]);
 
   const { data } = useCategoriesList();
-
   const { mutate: createProductMutate } = useCreateProduct();
   const { mutate: updateProductMutate } = useUpdateProduct();
   const { mutate: uploadProductImageMutate } = useUploadProductImage();
   const { mutate: deleteProductImageMutate } = useDeleteProductImage();
+
   const form = useForm({
     defaultValues: {
       name: product?.name ?? "",
@@ -77,46 +85,71 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
       onSubmit: productSchema,
     },
     onSubmit: async ({ value }) => {
+      if (value.categoryId === undefined) return;
+
+      const payload = {
+        ...value,
+        categoryId: value.categoryId,
+      };
+
       setIsLoading(true);
 
+      const resetFormState = () => {
+        setUploadedFiles([]);
+        setDeleteImageIds([]);
+        form.reset();
+        setOpen(false);
+      };
+
       if (product) {
+        // ─── Update Product ───────────────────────────────
         updateProductMutate(
-          { id: product.id, request: value },
+          { id: product.id, request: payload },
           {
-            onSuccess: (res) => {
-              if(res.data?.id){
-                uploadedFiles.map((file) =>
-                uploadProductImageMutate ({id: res.data.id, request: file }),  
+            onSuccess: (res: any) => {
+              console.log("UPDATE RESPONSE:", JSON.stringify(res));
+              const productId = extractId(res);
+              console.log("PRODUCT ID:", productId);
+
+              if (productId) {
+                uploadedFiles.forEach((file) =>
+                  uploadProductImageMutate({ id: productId, request: file })
+                );
+              }
+              deleteImageIds.forEach((imageId) =>
+                deleteProductImageMutate({ id: imageId })
               );
-              };
-               // call to delete image ids
-              console.log("delete image ids", deleteImageIds);
-              deleteImageIds.map((imageId) =>
-                deleteProductImageMutate({ id: imageId }),
-              );
-              setOpen(false);
-              setUploadedFiles([])
-              form.reset();
+
+              resetFormState();
+            },
+            onError: () => {
+              setIsLoading(false);
             },
             onSettled: () => {
               setIsLoading(false);
             },
-          },
+          }
         );
       } else {
-        createProductMutate(value, {
-    
-          onSuccess: (res) => {
-            console.log("created product response", res);
-            if (res.data.id) {
-              uploadedFiles.forEach((file) => {
-                uploadProductImageMutate({ id: res.data.id, request: file });
-              });
+        // ─── Create Product ───────────────────────────────
+        createProductMutate(payload, {
+          onSuccess: (res: any) => {
+            console.log("FULL RESPONSE:", JSON.stringify(res));
+            const productId = extractId(res);
+            console.log("PRODUCT ID:", productId);
+
+            if (productId) {
+              uploadedFiles.forEach((file) =>
+                uploadProductImageMutate({ id: productId, request: file })
+              );
+            } else {
+              console.warn("Could not extract product ID from response:", res);
             }
 
-            setOpen(false);
-            setUploadedFiles([])
-            form.reset();
+            resetFormState();
+          },
+          onError: () => {
+            setIsLoading(false);
           },
           onSettled: () => {
             setIsLoading(false);
@@ -126,8 +159,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
     },
   });
 
-  // FIX 1: Added `form` to dependency array to satisfy exhaustive-deps rule.
-  // Using form.setFieldValue is stable, so this won't cause infinite loops.
+  // ─── Sync form values when editing ───────────────────────
   useEffect(() => {
     if (product) {
       form.setFieldValue("name", product.name);
@@ -139,23 +171,22 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
     }
   }, [product, form]);
 
+  // ─── Reset state when dialog closes ──────────────────────
+  useEffect(() => {
+    if (!open) {
+      setDeleteImageIds([]);
+      setUploadedFiles([]);
+    }
+  }, [open]);
+
   const handleFileSelect = (files: FileList | null) => {
     if (!files) return;
-
     const newFiles = Array.from(files);
     setUploadedFiles((prev) => [...prev, ...newFiles]);
-
-    
   };
 
-  const handleBoxClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
+  const handleBoxClick = () => fileInputRef.current?.click();
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     handleFileSelect(e.dataTransfer.files);
@@ -166,26 +197,29 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
   };
 
   return (
-     <div>
+    <div>
       {isLoading && <Spinner />}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent key={product?.id ?? "create"} className="sm:max-w-[60vw] h-[90vh] overflow-y-auto">
+        <DialogContent
+          key={product?.id ?? "create"}
+          className="sm:max-w-[60vw] h-[90vh] overflow-y-auto"
+        >
           <DialogHeader>
-            <DialogTitle>
-              {product ? "Update" : "Create"} Product
-            </DialogTitle>
+            <DialogTitle>{product ? "Update" : "Create"} Product</DialogTitle>
             <DialogDescription>Product Information Detail</DialogDescription>
           </DialogHeader>
+
           <form
-          key={product?.id ?? "create"}
+            key={product?.id ?? "create"}
             id="product-form"
             onSubmit={(e) => {
               e.preventDefault();
               form.handleSubmit();
-            }} 
+            }}
           >
             <FieldGroup>
+              {/* ── Product Name ───────────────────────────── */}
               <form.Field
                 name="name"
                 children={(field) => {
@@ -212,6 +246,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 }}
               />
 
+              {/* ── Price & Quantity ────────────────────────── */}
               <div className="grid grid-cols-2 gap-4">
                 <form.Field
                   name="price"
@@ -220,13 +255,14 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                       field.state.meta.isTouched && !field.state.meta.isValid;
                     return (
                       <Field data-invalid={isInvalid}>
-                        <FieldLabel htmlFor={field.name}>Price</FieldLabel>
+                        <FieldLabel htmlFor={field.name}>Price ($)</FieldLabel>
                         <Input
                           id={field.name}
                           name={field.name}
                           value={field.state.value}
                           onBlur={field.handleBlur}
-                          type={"number"}
+                          type="number"
+                          min={0}
                           onChange={(e) =>
                             field.handleChange(e.target.valueAsNumber)
                           }
@@ -248,18 +284,24 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                       field.state.meta.isTouched && !field.state.meta.isValid;
                     return (
                       <Field data-invalid={isInvalid}>
-                        <FieldLabel htmlFor={field.name}>Quantity</FieldLabel>
+                        <FieldLabel htmlFor={field.name}>
+                          Stock Quantity
+                        </FieldLabel>
                         <Input
                           id={field.name}
                           name={field.name}
                           value={field.state.value}
                           onBlur={field.handleBlur}
-                          type={"number"}
+                          type="number"
+                          min={0}
+                          step={1}
                           onChange={(e) =>
-                            field.handleChange(e.target.valueAsNumber)
+                            field.handleChange(
+                              parseInt(e.target.value, 10) || 0
+                            )
                           }
                           aria-invalid={isInvalid}
-                          placeholder="Enter quantity"
+                          placeholder="Enter stock quantity"
                         />
                         {isInvalid && (
                           <FieldError errors={field.state.meta.errors} />
@@ -270,6 +312,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 />
               </div>
 
+              {/* ── Category ────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-4">
                 <form.Field
                   name="categoryId"
@@ -282,14 +325,17 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                           <FieldLabel htmlFor="form-tanstack-select-language">
                             Category
                           </FieldLabel>
-
                           {isInvalid && (
                             <FieldError errors={field.state.meta.errors} />
                           )}
                         </FieldContent>
                         <Select
                           name={field.name}
-                          value={String(field.state.value)}
+                          value={
+                            field.state.value !== undefined
+                              ? String(field.state.value)
+                              : ""
+                          }
                           onValueChange={(val) =>
                             field.handleChange(Number(val))
                           }
@@ -302,14 +348,16 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                             <SelectValue placeholder="Select the category" />
                           </SelectTrigger>
                           <SelectContent position="item-aligned">
-                            {data?.data.map((category: ICategory, index: number) => (
-                              <SelectItem
-                                key={index}
-                                value={String(category.id)}
-                              >
-                                {category.name}
-                              </SelectItem>
-                            ))}
+                            {data?.data.map(
+                              (category: ICategory, index: number) => (
+                                <SelectItem
+                                  key={index}
+                                  value={String(category.id)}
+                                >
+                                  {category.name}
+                                </SelectItem>
+                              )
+                            )}
                           </SelectContent>
                         </Select>
                       </Field>
@@ -318,7 +366,8 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 />
               </div>
 
-              <div className="">
+              {/* ── Image Upload ─────────────────────────────── */}
+              <div>
                 <div
                   className="border-2 border-dashed border-border rounded-md p-8 flex flex-col items-center justify-center text-center cursor-pointer"
                   onClick={handleBoxClick}
@@ -348,85 +397,83 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                     ref={fileInputRef}
                     className="hidden"
                     accept="image/*"
+                    multiple
                     onChange={(e) => handleFileSelect(e.target.files)}
                   />
                 </div>
               </div>
 
-              {product?.productImages && product.productImages?.length > 0 && (
-                <div className="space-y-2"> 
-                  {product.productImages 
-                  .filter((image: IProductImage) => !deleteImageIds.includes(image.id))
-                  .map(
-                    (image: IProductImage, index: number) => (
+              {/* ── Existing Images (Edit mode) ──────────────── */}
+              {product?.productImages && product.productImages.length > 0 && (
+                <div className="space-y-2">
+                  {product.productImages
+                    .filter(
+                      (image: IProductImage) =>
+                        !deleteImageIds.includes(image.id)
+                    )
+                    .map((image: IProductImage, index: number) => (
                       <div
                         key={index}
                         className="border border-border rounded-lg p-2 flex flex-col"
                       >
                         <div className="flex items-center gap-2">
-                          <div className="w-18 h-14 bg-muted rounded-sm flex items-center justify-center self-start row-span-2 overflow-hidden">
+                          <div className="w-18 h-14 bg-muted rounded-sm flex items-center justify-center self-start overflow-hidden">
                             <img
                               src={image.imageUrl}
                               alt={image.fileName}
                               className="w-full h-full object-cover"
                             />
                           </div>
-
                           <div className="flex-1 pr-1">
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-foreground truncate max-w-[250px]">
-                                  {image.fileName}
-                                </span>
-                              </div>
+                              <span className="text-sm text-foreground truncate max-w-[250px]">
+                                {image.fileName}
+                              </span>
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
                                 className="bg-transparent! hover:text-red-500"
                                 type="button"
-                                onClick={() => {
+                                onClick={() =>
                                   setDeleteImageIds((prev) => [
                                     ...prev,
                                     image.id,
-                                  ]); 
-                                }} >
+                                  ])
+                                }
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>
                         </div>
                       </div>
-                    ),
-                  )} 
+                    ))}
                 </div>
               )}
 
+              {/* ── New Uploaded Files Preview ───────────────── */}
               <div
                 className={cn(
                   "pb-5 space-y-3",
-                  uploadedFiles.length > 0 ? "mt-4" : "",
+                  uploadedFiles.length > 0 ? "mt-4" : ""
                 )}
               >
                 {uploadedFiles.map((file, index) => {
                   const imageUrl = URL.createObjectURL(file);
-
                   return (
                     <div
                       className="border border-border rounded-lg p-2 flex flex-col"
                       key={file.name + index}
-                      onLoad={() => {
-                        return () => URL.revokeObjectURL(imageUrl);
-                      }}
                     >
                       <div className="flex items-center gap-2">
-                        <div className="w-18 h-14 bg-muted rounded-sm flex items-center justify-center self-start row-span-2 overflow-hidden">
+                        <div className="w-18 h-14 bg-muted rounded-sm flex items-center justify-center self-start overflow-hidden">
                           <img
                             src={imageUrl}
                             alt={file.name}
                             className="w-full h-full object-cover"
+                            onLoad={() => URL.revokeObjectURL(imageUrl)}
                           />
                         </div>
-
                         <div className="flex-1 pr-1">
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-2">
@@ -440,6 +487,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                             <Button
                               variant="ghost"
                               size="icon-sm"
+                              type="button"
                               className="bg-transparent! hover:text-red-500"
                               onClick={() => removeFile(file.name)}
                             >
@@ -454,13 +502,14 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
               </div>
             </FieldGroup>
           </form>
+
           <DialogFooter>
             <Field orientation="horizontal" className="flex justify-end">
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
               <Button className="bg-blue-500" type="submit" form="product-form">
-                Save
+                {product ? "Update" : "Save"}
               </Button>
             </Field>
           </DialogFooter>

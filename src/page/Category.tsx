@@ -17,8 +17,6 @@ import { useNavigate } from "react-router-dom";
 import { getAccessToken } from "../utils/TokenStorage";
 
 
-
-
 const Category = () => {
  
  const Navigate = useNavigate()
@@ -29,7 +27,7 @@ const Category = () => {
   const [searchInput, setSearchInput] = useState("");
   const [value]=   useDebounce(searchInput,500)
    console.log("value", value)
-   const { data, isLoading } = useCategories(value);
+   const { data,} = useCategories(value);
 
   const [category, setCategory] = useState<ICategory | undefined>(undefined);
 

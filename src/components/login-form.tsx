@@ -38,6 +38,12 @@ export function LoginForm({
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
+                   <Input
+                  id="password"
+                  type="Enter your Password"
+                  placeholder="123"
+                  required
+                />
                   <a
                     href="#"
                     className="ml-auto text-sm underline-offset-2 hover:underline"

@@ -1,16 +1,18 @@
-//set
-export const setAccessToken  = (token:string) => {
-    localStorage.setItem("accessToken" , token);
+const ACCESS_TOKEN_KEY = "accessToken";
 
-}
+export const setAccessToken = (token: string): void => {
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+};
 
-//get
- export const  getAccessToken =  () => {
-    return localStorage.getItem("accessToken");
+export const getAccessToken = (): string | null => {
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+};
 
- } 
- //remove
+export const removeAccessToken = (): void => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+};
 
- export const removeAccessToke = () => {
-    localStorage.removeItem("accessToken");
- }
+
+export const isAuthenticated = (): boolean => {
+  return !!localStorage.getItem(ACCESS_TOKEN_KEY);
+};

@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import {
-  AudioWaveform,
-  BookOpen,
-  Command,
   GalleryVerticalEnd,
-
   ScanQrCode,
   Settings2,
-  SquareTerminal,
+  LayoutDashboard,
+  Package,
+  Users,
+  ClipboardList,
+  BarChart2,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -22,111 +22,100 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { isAdmin, getCurrentUser } from "@/utils/auth";
 
-// This is sample data.
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  teams: [
-    {
-      name: "Sala-IT",
-      logo: GalleryVerticalEnd,
-      plan: "",
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [adminOnly, setAdminOnly] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState<{ name?: string; email?: string } | null>(null);
+
+  React.useEffect(() => {
+    const user = getCurrentUser();
+    setAdminOnly(isAdmin());
+    setCurrentUser(user);
+  }, []);
+
+  const data = {
+    user: {
+      name:   currentUser?.name  ?? "User",
+      email:  currentUser?.email ?? "",
+      avatar: "/LEVA store logo.png",
     },
-    {
-      name: "Acme Corp.",
-      logo: AudioWaveform,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: Command,
-      plan: "Free",
-    },
-  ],
-  navMain: [
-    {
-      title: "Product",
-      url: "/products",
-      icon: SquareTerminal,
-      isActive: true,
-      items: [
+    teams: [
+      {
+        name:   "Levarstore",
+        logo:   GalleryVerticalEnd,
+        plan:   "POS System",
+        avatar: "/LEVA store logo.png",
+      },
+    ],
+    navMain: [
+      // ─── POS (admin + cashier) ────────────────────────
+      {
+        title:    "POS",
+        url:      "/admin/pos",
+        icon:     ScanQrCode,
+        isActive: true,
+        items:    [],
+      },
+
+      // ─── Admin only ───────────────────────────────────
+      ...(adminOnly ? [
         {
-          title: "Products",
-          url: "/admin/products",
+          title: "Dashboard",
+          url:   "/admin/dashboard",
+          icon:  LayoutDashboard,
+          items: [
+            { title: "Overview", url: "/admin/dashboard" },
+          ],
         },
         {
-          title: "Category",
-          url: "/admin/categories",
+          title: "Products",
+          url:   "/admin/products",
+          icon:  Package,
+          items: [
+            { title: "All Products", url: "/admin/products"   },
+            { title: "Categories",   url: "/admin/categories" },
+          ],
+        },
+        {
+          title: "Orders",
+          url:   "/admin/orders",
+          icon:  ClipboardList,
+          items: [
+            { title: "All Orders", url: "/admin/orders" },
+          ],
+        },
+        {
+          title: "Reports",
+          url:   "/admin/reports",
+          icon:  BarChart2,
+          items: [
+            { title: "Daily",   url: "/admin/reports/daily"   },
+            { title: "Monthly", url: "/admin/reports/monthly" },
+          ],
         },
         {
           title: "Users",
-          url: "/admin/users",
+          url:   "/admin/users",
+          icon:  Users,
+          items: [
+            { title: "All Users", url: "/admin/users" },
+          ],
         },
-        {
-          title: "POS",
-          url: "/admin/pos",
-        },
-      ],
-    },
-    {
-      title: "POS",
-      url: "/admin/pos",
-      icon: ScanQrCode,
-    },
-    {
-      title: "Documentation",
-      url: "#",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Introduction",
-          url: "#",
-        },
-        {
-          title: "Get Started",
-          url: "#",
-        },
-        {
-          title: "Tutorials",
-          url: "#",
-        },
-        {
-          title: "Changelog",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: Settings2,
-      items: [
-        {
-          title: "General",
-          url: "#",
-        },
-        {
-          title: "Team",
-          url: "#",
-        },
-        {
-          title: "Billing",
-          url: "#",
-        },
-        {
-          title: "Limits",
-          url: "#",
-        },
-      ],
-    },
-  ],
-};
+      ] : []),
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+      // ─── Settings (admin + cashier) ───────────────────
+      // {
+      //   title: "Settings",
+      //   url:   "#",
+      //   icon:  Settings2,
+      //   items: [
+      //     { title: "General", url: "#" },
+      //   ],
+      // },
+    ],
+  };
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
