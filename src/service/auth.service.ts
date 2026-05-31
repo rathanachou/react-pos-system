@@ -1,16 +1,32 @@
-export interface PayLoad{
-    email: string;
-    password:string
+import api from "./libs/axios";
 
+export interface PayLoad {
+  email: string;
+  password: string;
 }
 
-export const authLogin = async (request: PayLoad ) => {
-  const res = await fetch(`http://localhost:3000/api/v1/auth/login`, {
-    method: "POST",  
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  const data = await res.json();
-  console.log("authLogin",data);
-  return data;
+export interface RegisterPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  gender: string;
+  role: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  data: {
+    token: string;
+  };
+}
+
+export const authLogin = async (request: PayLoad): Promise<AuthResponse> => {
+  return api.post("/api/v1/auth/login", request);
+};
+
+export const authRegister = async (
+  request: RegisterPayload
+): Promise<AuthResponse> => {
+  return api.post("/api/v1/auth/register", request);
 };

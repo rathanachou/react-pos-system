@@ -18,3 +18,9 @@ export const getMonthlySales = async () => {
 export const getSalesByCategory = async () => {
   return await api.get("/api/v1/dashboard/sales/by-category");
 };
+
+export const getDailySales = async (date?: string) => {
+  return await api.get("/api/v1/dashboard/sales/daily", {
+    params: { date },
+  });
+};

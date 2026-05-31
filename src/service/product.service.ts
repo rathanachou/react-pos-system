@@ -54,8 +54,9 @@ export const uploadProductImage = async (id: number, file: File) => {
   });
 };
 
-export const deleteProductImage = async (id?: number) => {
-  return await api.delete(`/api/v1/products/images/${id}`);
+// FIX: Now accepts both imageId and productId to match the correct backend route
+export const deleteProductImage = async (imageId: number, productId: number) => {
+  return await api.delete(`/api/v1/products/${productId}/images/${imageId}`);
 };
 
 // ─── Stock ────────────────────────────────────────────────
@@ -110,7 +111,6 @@ export const printSingleBarcode = async (id: number) => {
   const blob = new Blob([res as any], { type: "application/pdf" });
   downloadBlob(blob, `label-${id}.pdf`);
 };
-
 
 export const getBarcodeImageUrl = (id: number): string => {
   return `${import.meta.env.VITE_API_URL}/api/v1/products/${id}/barcode`;

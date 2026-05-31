@@ -58,10 +58,74 @@ interface Props {
   product?: IProduct;
 }
 
+// ─── Extract product ID from API response ────────────────
 const extractId = (res: any): number | undefined => {
-  return res?.data?.id ?? res?.id ?? undefined;
+  const id = res?.data?.id ?? res?.id ?? undefined;
+  if (!id) {
+    console.warn("Could not extract product ID from response:", JSON.stringify(res));
+  }
+  return id;
 };
 
+// ─── Stable Object URL hook ───────────────────────────────
+const useObjectUrl = (file: File) => {
+  const [url, setUrl] = useState<string>("");
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+  return url;
+};
+
+// ─── File Preview Item ────────────────────────────────────
+const FilePreviewItem = ({
+  file,
+  onRemove,
+}: {
+  file: File;
+  onRemove: () => void;
+}) => {
+  const imageUrl = useObjectUrl(file);
+  return (
+    <div className="border border-border rounded-lg p-2 flex flex-col">
+      <div className="flex items-center gap-2">
+        <div className="w-18 h-14 bg-muted rounded-sm flex items-center justify-center self-start overflow-hidden">
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt={file.name}
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+        <div className="flex-1 pr-1">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-foreground truncate max-w-[250px]">
+                {file.name}
+              </span>
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {Math.round(file.size / 1024)} KB
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              type="button"
+              className="bg-transparent! hover:text-red-500"
+              onClick={onRemove}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────
 const ProductForm = ({ open, setOpen, product }: Props) => {
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,10 +133,10 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
   const [deleteImageIds, setDeleteImageIds] = useState<number[]>([]);
 
   const { data } = useCategoriesList();
-  const { mutate: createProductMutate } = useCreateProduct();
-  const { mutate: updateProductMutate } = useUpdateProduct();
-  const { mutate: uploadProductImageMutate } = useUploadProductImage();
-  const { mutate: deleteProductImageMutate } = useDeleteProductImage();
+  const { mutateAsync: createProductMutate } = useCreateProduct();
+  const { mutateAsync: updateProductMutate } = useUpdateProduct();
+  const { mutateAsync: uploadProductImageMutate } = useUploadProductImage();
+  const { mutateAsync: deleteProductImageMutate } = useDeleteProductImage();
 
   const form = useForm({
     defaultValues: {
@@ -87,11 +151,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
     onSubmit: async ({ value }) => {
       if (value.categoryId === undefined) return;
 
-      const payload = {
-        ...value,
-        categoryId: value.categoryId,
-      };
-
+      const payload = { ...value, categoryId: value.categoryId };
       setIsLoading(true);
 
       const resetFormState = () => {
@@ -101,65 +161,70 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
         setOpen(false);
       };
 
-      if (product) {
-        // ─── Update Product ───────────────────────────────
-        updateProductMutate(
-          { id: product.id, request: payload },
-          {
-            onSuccess: (res: any) => {
-              console.log("UPDATE RESPONSE:", JSON.stringify(res));
-              const productId = extractId(res);
-              console.log("PRODUCT ID:", productId);
+      try {
+        if (product) {
+          // ─── Update Product ───────────────────────────
+          // Step 1: Save product info — wait for this
+          const res = await updateProductMutate({
+            id: product.id,
+            request: payload,
+          });
+          const productId = extractId(res) ?? product.id;
 
-              if (productId) {
-                uploadedFiles.forEach((file) =>
-                  uploadProductImageMutate({ id: productId, request: file })
-                );
-              }
-              deleteImageIds.forEach((imageId) =>
-                deleteProductImageMutate({ id: imageId })
-              );
+          // Step 2: Close dialog immediately — feel fast to user 
+          resetFormState();
 
-              resetFormState();
-            },
-            onError: () => {
-              setIsLoading(false);
-            },
-            onSettled: () => {
-              setIsLoading(false);
-            },
+          // Step 3: Run image delete + upload in background
+          // Dialog is already closed, user can do other things
+          Promise.all([
+            ...deleteImageIds.map((imageId) =>
+              deleteProductImageMutate({ id: imageId, productId }).catch((err: any) => {
+                const status = err?.response?.status;
+                if (status !== 404) {
+                  console.error(`Failed to delete image ${imageId}:`, err);
+                }
+              })
+            ),
+            ...uploadedFiles.map((file) =>
+              uploadProductImageMutate({ id: productId, request: file }).catch((err: any) => {
+                console.error(`Failed to upload image:`, err);
+              })
+            ),
+          ]).catch((err) => {
+            console.error("Background image sync error:", err);
+          });
+
+        } else {
+          // ─── Create Product ───────────────────────────
+          // Step 1: Create product — must wait for ID
+          const res = await createProductMutate(payload);
+          const productId = extractId(res);
+
+          // Step 2: Close dialog immediately 
+          resetFormState();
+
+          // Step 3: Upload images in background
+          if (productId && uploadedFiles.length > 0) {
+            Promise.all(
+              uploadedFiles.map((file) =>
+                uploadProductImageMutate({ id: productId, request: file }).catch((err: any) => {
+                  console.error(`Failed to upload image:`, err);
+                })
+              )
+            ).catch((err) => {
+              console.error("Background image upload error:", err);
+            });
           }
-        );
-      } else {
-        // ─── Create Product ───────────────────────────────
-        createProductMutate(payload, {
-          onSuccess: (res: any) => {
-            console.log("FULL RESPONSE:", JSON.stringify(res));
-            const productId = extractId(res);
-            console.log("PRODUCT ID:", productId);
-
-            if (productId) {
-              uploadedFiles.forEach((file) =>
-                uploadProductImageMutate({ id: productId, request: file })
-              );
-            } else {
-              console.warn("Could not extract product ID from response:", res);
-            }
-
-            resetFormState();
-          },
-          onError: () => {
-            setIsLoading(false);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          },
-        });
+        }
+      } catch (error) {
+        console.error("Form submission error:", error);
+      } finally {
+        setIsLoading(false);
       }
     },
   });
 
-  // ─── Sync form values when editing ───────────────────────
+  // ─── Sync form when editing existing product ──────────
   useEffect(() => {
     if (product) {
       form.setFieldValue("name", product.name);
@@ -171,7 +236,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
     }
   }, [product, form]);
 
-  // ─── Reset state when dialog closes ──────────────────────
+  // ─── Reset state when dialog closes ──────────────────
   useEffect(() => {
     if (!open) {
       setDeleteImageIds([]);
@@ -181,8 +246,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
 
   const handleFileSelect = (files: FileList | null) => {
     if (!files) return;
-    const newFiles = Array.from(files);
-    setUploadedFiles((prev) => [...prev, ...newFiles]);
+    setUploadedFiles((prev) => [...prev, ...Array.from(files)]);
   };
 
   const handleBoxClick = () => fileInputRef.current?.click();
@@ -192,8 +256,8 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
     handleFileSelect(e.dataTransfer.files);
   };
 
-  const removeFile = (filename: string) => {
-    setUploadedFiles((prev) => prev.filter((file) => file.name !== filename));
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -219,7 +283,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
             }}
           >
             <FieldGroup>
-              {/* ── Product Name ───────────────────────────── */}
+              {/* ── Product Name ──────────────────────────── */}
               <form.Field
                 name="name"
                 children={(field) => {
@@ -246,7 +310,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 }}
               />
 
-              {/* ── Price & Quantity ────────────────────────── */}
+              {/* ── Price & Quantity ───────────────────────── */}
               <div className="grid grid-cols-2 gap-4">
                 <form.Field
                   name="price"
@@ -312,7 +376,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 />
               </div>
 
-              {/* ── Category ────────────────────────────────── */}
+              {/* ── Category ───────────────────────────────── */}
               <div className="grid grid-cols-2 gap-4">
                 <form.Field
                   name="categoryId"
@@ -366,7 +430,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 />
               </div>
 
-              {/* ── Image Upload ─────────────────────────────── */}
+              {/* ── Image Upload ──────────────────────────── */}
               <div>
                 <div
                   className="border-2 border-dashed border-border rounded-md p-8 flex flex-col items-center justify-center text-center cursor-pointer"
@@ -403,7 +467,7 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 </div>
               </div>
 
-              {/* ── Existing Images (Edit mode) ──────────────── */}
+              {/* ── Existing Images (Edit mode) ───────────── */}
               {product?.productImages && product.productImages.length > 0 && (
                 <div className="space-y-2">
                   {product.productImages
@@ -451,54 +515,20 @@ const ProductForm = ({ open, setOpen, product }: Props) => {
                 </div>
               )}
 
-              {/* ── New Uploaded Files Preview ───────────────── */}
+              {/* ── New Uploaded Files Preview ────────────── */}
               <div
                 className={cn(
                   "pb-5 space-y-3",
                   uploadedFiles.length > 0 ? "mt-4" : ""
                 )}
               >
-                {uploadedFiles.map((file, index) => {
-                  const imageUrl = URL.createObjectURL(file);
-                  return (
-                    <div
-                      className="border border-border rounded-lg p-2 flex flex-col"
-                      key={file.name + index}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-18 h-14 bg-muted rounded-sm flex items-center justify-center self-start overflow-hidden">
-                          <img
-                            src={imageUrl}
-                            alt={file.name}
-                            className="w-full h-full object-cover"
-                            onLoad={() => URL.revokeObjectURL(imageUrl)}
-                          />
-                        </div>
-                        <div className="flex-1 pr-1">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-foreground truncate max-w-[250px]">
-                                {file.name}
-                              </span>
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                                {Math.round(file.size / 1024)} KB
-                              </span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              type="button"
-                              className="bg-transparent! hover:text-red-500"
-                              onClick={() => removeFile(file.name)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {uploadedFiles.map((file, index) => (
+                  <FilePreviewItem
+                    key={file.name + index}
+                    file={file}
+                    onRemove={() => removeFile(index)}
+                  />
+                ))}
               </div>
             </FieldGroup>
           </form>

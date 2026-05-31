@@ -1,4 +1,3 @@
-
 import {
   createProduct,
   deleteProduct,
@@ -36,7 +35,6 @@ export const useOutOfStockProducts = (
   return useQuery({
     queryKey: ["products-out-of-stock", search, categoryId],
     queryFn: () => fetchOutOfStockProducts(search, categoryId),
-
     retry: false,
   });
 };
@@ -84,22 +82,28 @@ export const useUploadProductImage = () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
     onError: (error: Error) => {
+      toast.error("Failed to upload product image");
       console.error("Failed to upload product image", error);
     },
   });
 };
 
+// FIX: Now requires productId so the correct backend route is called
 export const useDeleteProductImage = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id }: { id: number }) => deleteProductImage(id),
+    mutationFn: ({ id, productId }: { id: number; productId: number }) =>
+      deleteProductImage(id, productId),
     onSuccess: () => {
-      toast.success("Product image deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
-    onError: (error: Error) => {
-      toast.error("Failed to delete product image");
-      console.error("Failed to delete product image", error);
+    onError: (error: any) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      const status = error?.response?.status;
+      if (status !== 404) {
+        toast.error("Failed to delete product image");
+        console.error("Failed to delete product image", error);
+      }
     },
   });
 };
@@ -110,8 +114,8 @@ export const useDeleteProduct = () => {
     mutationFn: (id: number) => deleteProduct(id),
     onSuccess: () => {
       toast.success("Product deleted successfully");
-       queryClient.invalidateQueries({ queryKey: ["products"], refetchType: "all" });
-       queryClient.invalidateQueries({ queryKey: ["products-out-of-stock"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["products"], refetchType: "all" });
+      queryClient.invalidateQueries({ queryKey: ["products-out-of-stock"], refetchType: "all" });
     },
     onError: (error: Error) => {
       toast.error("Failed to delete product");
@@ -124,10 +128,9 @@ export const useProductStock = (id: number) => {
   return useQuery({
     queryKey: ["product-stock", id],
     queryFn: () => fetchProductStock(id),
-    enabled: !!id, 
+    enabled: !!id,
   });
 };
-
 
 export const useStockIn = () => {
   const queryClient = useQueryClient();
@@ -136,7 +139,6 @@ export const useStockIn = () => {
       stockIn(id, qty),
     onSuccess: (_, variables) => {
       toast.success("Stock added successfully ✅");
-      // Refresh Stock + Product List
       queryClient.invalidateQueries({ queryKey: ["product-stock", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products-out-of-stock"] });
@@ -147,7 +149,6 @@ export const useStockIn = () => {
     },
   });
 };
-
 
 export const useStockOut = () => {
   const queryClient = useQueryClient();
@@ -162,12 +163,10 @@ export const useStockOut = () => {
       queryClient.invalidateQueries({ queryKey: ["products-low-stock"] });
     },
     onError: (error: any) => {
-  
       toast.error(error?.response?.data?.message || "Failed to deduct stock ❌");
     },
   });
 };
-
 
 export const useLowStockProducts = (threshold?: number) => {
   return useQuery({
